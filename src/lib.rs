@@ -79,6 +79,13 @@ impl From<Point> for [f64; 2] {
     }
 }
 
+#[derive(Debug)]
+enum CircumcirclePosition {
+    Inside,
+    On,
+    Outside,
+}
+
 impl Point {
     fn dist2(&self, p: &Self) -> f64 {
         let dx = self.x - p.x;
@@ -122,7 +129,7 @@ impl Point {
         }
     }
 
-    fn in_circle(&self, b: &Self, c: &Self, p: &Self) -> bool {
+    fn check_circumcircle(&self, b: &Self, c: &Self, p: &Self) -> CircumcirclePosition {
         let dx = self.x - p.x;
         let dy = self.y - p.y;
         let ex = b.x - p.x;
@@ -134,7 +141,15 @@ impl Point {
         let bp = ex * ex + ey * ey;
         let cp = fx * fx + fy * fy;
 
-        dx * (ey * cp - bp * fy) - dy * (ex * cp - bp * fx) + ap * (ex * fy - ey * fx) < 0.0
+        let det = dx * (ey * cp - bp * fy) - dy * (ex * cp - bp * fx) + ap * (ex * fy - ey * fx);
+
+        if det > 0.0 {
+            CircumcirclePosition::Inside
+        } else if det < 0.0 {
+            CircumcirclePosition::Outside
+        } else {
+            CircumcirclePosition::On
+        }
     }
 
     fn nearly_equals(&self, p: &Self) -> bool {
@@ -182,6 +197,9 @@ pub struct Triangulation {
     /// A vector of indices that reference points on the convex hull of the triangulation,
     /// counter-clockwise.
     pub hull: Vec<usize>,
+
+    /// The number of times the circumcircle check was ambiguous in the triangulation.
+    pub ambiguous_circumcircle_count: usize,
 }
 
 impl Triangulation {
@@ -192,6 +210,7 @@ impl Triangulation {
             triangles: Vec::with_capacity(max_triangles * 3),
             halfedges: Vec::with_capacity(max_triangles * 3),
             hull: Vec::new(),
+            ambiguous_circumcircle_count: 0,
         }
     }
 
@@ -268,7 +287,14 @@ impl Triangulation {
         let pl = self.triangles[al];
         let p1 = self.triangles[bl];
 
-        let illegal = points[p0].in_circle(&points[pr], &points[pl], &points[p1]);
+        let illegal = match points[p0].check_circumcircle(&points[pr], &points[pl], &points[p1]) {
+            CircumcirclePosition::Outside => false,
+            CircumcirclePosition::Inside => true,
+            CircumcirclePosition::On => {
+                self.ambiguous_circumcircle_count += 1;
+                false
+            }
+        };
         if illegal {
             self.triangles[a] = p1;
             self.triangles[b] = p0;
