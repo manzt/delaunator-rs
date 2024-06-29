@@ -144,9 +144,9 @@ impl Point {
         let det = dx * (ey * cp - bp * fy) - dy * (ex * cp - bp * fx) + ap * (ex * fy - ey * fx);
 
         if det > 0.0 {
-            CircumcirclePosition::Inside
-        } else if det < 0.0 {
             CircumcirclePosition::Outside
+        } else if det < 0.0 {
+            CircumcirclePosition::Inside
         } else {
             CircumcirclePosition::On
         }
